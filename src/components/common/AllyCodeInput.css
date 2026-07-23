@@ -43,6 +43,33 @@
   opacity: 0.5;
 }
 
+.ally-code-form__button {
+  padding: 0.625rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.ally-code-form__button:hover:not(:disabled) {
+  background: #d93d50;
+}
+
+.ally-code-form__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ally-code-form__hint--ally {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 .ally-code-form__results {
   display: flex;
   flex-direction: column;

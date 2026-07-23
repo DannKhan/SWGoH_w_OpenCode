@@ -12,7 +12,9 @@ interface AppState {
   setGuild: (id: string, name: string) => void;
   searchResults: ComlinkGuildSearchItem[];
   searchLoading: boolean;
+  searchByAllyCodeLoading: boolean;
   searchGuilds: (query: string) => Promise<void>;
+  searchByAllyCode: (allyCode: string) => Promise<void>;
   githubToken: string;
   setGithubToken: (token: string) => void;
   snapshotStatus: 'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error';
@@ -41,6 +43,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<ComlinkGuildSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchByAllyCodeLoading, setSearchByAllyCodeLoading] = useState(false);
   const [githubToken, setGithubTokenState] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '');
 
   const [snapshotStatus, setSnapshotStatus] = useState<'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error'>('idle');
@@ -95,6 +98,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const dispatchAndPollSnapshot = useCallback(async (allyCode: string): Promise<ComlinkPlayerResponse> => {
+    const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
+
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_ID}/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'master', inputs: { allyCode } }),
+      }
+    );
+    if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+
+    setSnapshotStatus('pending');
+    setPlayerAllyCode(allyCode);
+
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const check = await fetch(rawUrl);
+        if (check.ok) {
+          return check.json() as Promise<ComlinkPlayerResponse>;
+        }
+      } catch { /* retry */ }
+    }
+    throw new Error('Тайм-аут ожидания снепшота');
+  }, [githubToken, setPlayerAllyCode]);
+
   const requestSnapshot = useCallback(async (allyCode: string) => {
     if (!githubToken || !allyCode) {
       setSnapshotError('Требуется GitHub токен и Ally Code');
@@ -106,63 +141,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSnapshotError(null);
 
     try {
-      const res = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_ID}/dispatches`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${githubToken}`,
-            Accept: 'application/vnd.github+json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ref: 'master',
-            inputs: { allyCode },
-          }),
-        }
-      );
-
-      if (!res.ok) {
-        throw new Error(`GitHub API error ${res.status}`);
-      }
-
-      setSnapshotStatus('pending');
-      setPlayerAllyCode(allyCode);
-
-      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
-
-      let attempts = 0;
-      const maxAttempts = 30;
-      const poll = async (): Promise<void> => {
-        attempts++;
-        try {
-          const check = await fetch(rawUrl);
-          if (check.ok) {
-            const data = await check.json() as ComlinkPlayerResponse;
-            setPlayer(data);
-            setSnapshotStatus('ready');
-            return;
-          }
-        } catch { }
-
-        if (attempts >= maxAttempts) {
-          setSnapshotStatus('error');
-          setSnapshotError('Тайм-аут ожидания снепшота');
-          return;
-        }
-
-        await new Promise((r) => setTimeout(r, 5000));
-        return poll();
-      };
-
       setSnapshotStatus('loading');
-      poll();
+      const data = await dispatchAndPollSnapshot(allyCode);
+      setPlayer(data);
+      setSnapshotStatus('ready');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setSnapshotError(msg);
       setSnapshotStatus('error');
     }
-  }, [githubToken, setPlayerAllyCode]);
+  }, [githubToken, dispatchAndPollSnapshot]);
+
+  const searchByAllyCode = useCallback(async (allyCode: string) => {
+    if (!githubToken) {
+      setSnapshotError('Требуется GitHub токен для поиска по Ally Code');
+      setSnapshotStatus('error');
+      return;
+    }
+
+    setSearchByAllyCodeLoading(true);
+    setSnapshotStatus('requesting');
+    setSnapshotError(null);
+
+    try {
+      setSnapshotStatus('loading');
+      const data = await dispatchAndPollSnapshot(allyCode);
+      setPlayer(data);
+      setSnapshotStatus('ready');
+      if (data.guildId) {
+        setGuild(data.guildId, data.guildName);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setSnapshotError(msg);
+      setSnapshotStatus('error');
+    } finally {
+      setSearchByAllyCodeLoading(false);
+    }
+  }, [githubToken, dispatchAndPollSnapshot, setGuild]);
 
   useEffect(() => {
     if (guildId) fetchGuild(guildId);
@@ -190,7 +206,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGuild,
       searchResults,
       searchLoading,
+      searchByAllyCodeLoading,
       searchGuilds,
+      searchByAllyCode,
       githubToken,
       setGithubToken,
       snapshotStatus,
