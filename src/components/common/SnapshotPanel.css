@@ -1,0 +1,72 @@
+.snapshot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 1.5rem;
+}
+
+.snapshot-panel__hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.snapshot-panel__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.snapshot-panel__input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: var(--mono);
+  outline: none;
+}
+
+.snapshot-panel__input:focus {
+  border-color: var(--accent);
+}
+
+.snapshot-panel__btn {
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.snapshot-panel__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.snapshot-panel__success {
+  font-size: 0.8125rem;
+  color: var(--success);
+  padding: 0.5rem;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 4px;
+}
+
+.snapshot-panel__error {
+  font-size: 0.8125rem;
+  color: var(--danger);
+  padding: 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+}

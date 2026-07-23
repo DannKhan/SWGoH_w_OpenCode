@@ -1,0 +1,35 @@
+name: Fetch Player Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      allyCode:
+        description: 'Player ally code'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch player data from Comlink
+        run: |
+          mkdir -p data/snapshots
+          curl -s -X POST "https://free-comlink.onrender.com/player" \
+            -H "Content-Type: application/json" \
+            -d '{ "payload": { "allyCode": "${{ github.event.inputs.allyCode }}" } }' \
+            > data/snapshots/${{ github.event.inputs.allyCode }}.json
+          echo "Saved ${{ github.event.inputs.allyCode }}.json ($(wc -c < data/snapshots/${{ github.event.inputs.allyCode }}.json) bytes)"
+
+      - name: Commit snapshot
+        run: |
+          git config user.name "snapshot-bot"
+          git config user.email "bot@swgoh.app"
+          git add data/snapshots/${{ github.event.inputs.allyCode }}.json
+          git diff --cached --quiet || git commit -m "snapshot: ${{ github.event.inputs.allyCode }} [skip ci]"
+          git push
