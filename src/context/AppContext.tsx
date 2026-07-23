@@ -1,40 +1,71 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { comlinkApi, type ComlinkPlayerResponse, type ComlinkGuildResponse } from '../services/comlink';
+import { comlinkApi, type ComlinkPlayerResponse, type ComlinkGuildResponse, type ComlinkGuildSearchItem } from '../services/comlink';
 
 interface AppState {
-  allyCode: string;
-  player: ComlinkPlayerResponse | null;
+  guildId: string;
+  guildName: string;
   guild: ComlinkGuildResponse['guild'] | null;
+  player: ComlinkPlayerResponse | null;
   loading: boolean;
   error: string | null;
-  setAllyCode: (code: string) => void;
-  refresh: () => void;
+  setGuild: (id: string, name: string) => void;
+  setPlayerAllyCode: (code: string) => void;
+  searchResults: ComlinkGuildSearchItem[];
+  searchLoading: boolean;
+  searchGuilds: (query: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
 
-const STORAGE_KEY = 'swgoh_ally_code';
+const GUILD_ID_KEY = 'swgoh_guild_id';
+const GUILD_NAME_KEY = 'swgoh_guild_name';
+const ALLY_CODE_KEY = 'swgoh_ally_code';
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [allyCode, setAllyCodeState] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '');
-  const [player, setPlayer] = useState<ComlinkPlayerResponse | null>(null);
-  const [guild, setGuild] = useState<ComlinkGuildResponse['guild'] | null>(null);
+  const [guildId, setGuildIdState] = useState(() => localStorage.getItem(GUILD_ID_KEY) ?? '');
+  const [guildName, setGuildNameState] = useState(() => localStorage.getItem(GUILD_NAME_KEY) ?? '');
+  const [guild, setGuildData] = useState<ComlinkGuildResponse['guild'] | null>(null);
+  const [player] = useState<ComlinkPlayerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<ComlinkGuildSearchItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  const fetchAll = useCallback(async (code: string) => {
-    if (!code || code.length < 9) return;
+  const setGuild = useCallback((id: string, name: string) => {
+    localStorage.setItem(GUILD_ID_KEY, id);
+    localStorage.setItem(GUILD_NAME_KEY, name);
+    setGuildIdState(id);
+    setGuildNameState(name);
+    setSearchResults([]);
+  }, []);
+
+  const setPlayerAllyCode = useCallback((code: string) => {
+    localStorage.setItem(ALLY_CODE_KEY, code);
+  }, []);
+
+  const searchGuilds = useCallback(async (query: string) => {
+    if (!query || query.length < 2) return;
+    setSearchLoading(true);
+    setError(null);
+    try {
+      const result = await comlinkApi.searchGuilds(query);
+      setSearchResults(result.guild ?? []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(msg);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const fetchGuild = useCallback(async (id: string) => {
+    if (!id) return;
     setLoading(true);
     setError(null);
-
     try {
-      const playerData = await comlinkApi.getPlayer(code);
-      setPlayer(playerData);
-
-      if (playerData.guildId) {
-        const guildData = await comlinkApi.getGuild(playerData.guildId);
-        setGuild(guildData.guild);
-      }
+      const guildData = await comlinkApi.getGuild(id);
+      setGuildData(guildData.guild);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setError(msg);
@@ -43,27 +74,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setAllyCode = useCallback((code: string) => {
-    const trimmed = code.trim();
-    localStorage.setItem(STORAGE_KEY, trimmed);
-    setAllyCodeState(trimmed);
-  }, []);
-
   useEffect(() => {
-    if (allyCode) {
-      fetchAll(allyCode);
+    if (guildId) {
+      fetchGuild(guildId);
     }
-  }, [allyCode, fetchAll]);
+  }, [guildId, fetchGuild]);
 
   return (
     <AppContext.Provider value={{
-      allyCode,
-      player,
+      guildId,
+      guildName,
       guild,
+      player,
       loading,
       error,
-      setAllyCode,
-      refresh: () => fetchAll(allyCode),
+      setGuild,
+      setPlayerAllyCode,
+      searchResults,
+      searchLoading,
+      searchGuilds,
     }}>
       {children}
     </AppContext.Provider>

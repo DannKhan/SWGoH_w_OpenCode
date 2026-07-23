@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 export function Header() {
-  const { allyCode, setAllyCode, player } = useApp();
+  const { guildId, guildName, setGuild } = useApp();
 
   return (
     <header className="header">
@@ -26,10 +26,10 @@ export function Header() {
           </Link>
         ))}
       </nav>
-      {allyCode && (
+      {guildId && (
         <div className="header__user">
-          <span className="header__user-name">{player?.name ?? allyCode}</span>
-          <button className="header__user-btn" onClick={() => setAllyCode('')}>
+          <span className="header__user-name">{guildName}</span>
+          <button className="header__user-btn" onClick={() => setGuild('', '')}>
             Сменить
           </button>
         </div>

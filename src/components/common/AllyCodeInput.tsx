@@ -1,41 +1,68 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { formatGalaxyPower } from '../../utils';
 import './AllyCodeInput.css';
 
-export function AllyCodeInput() {
-  const { setAllyCode, loading } = useApp();
-  const [input, setInput] = useState('');
+export function GuildSearchForm() {
+  const { searchGuilds, searchResults, searchLoading, setGuild, loading } = useApp();
+  const [query, setQuery] = useState('');
+  const [searched, setSearched] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim().length >= 9) {
-      setAllyCode(input.trim());
+  useEffect(() => {
+    if (!query || query.length < 2) {
+      setSearched(false);
+      return;
     }
-  };
+    const timer = setTimeout(() => {
+      searchGuilds(query);
+      setSearched(true);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query, searchGuilds]);
+
+  if (loading) {
+    return <div className="ally-code-form"><p className="dashboard-loading">Загрузка данных гильдии...</p></div>;
+  }
 
   return (
-    <form className="ally-code-form" onSubmit={handleSubmit}>
-      <h2>Введите Ally Code</h2>
+    <div className="ally-code-form">
+      <h2>Поиск гильдии</h2>
       <p className="ally-code-form__hint">
-        Введите ваш Ally Code из игры, чтобы загрузить данные гильдии
+        Введите название гильдии для загрузки данных
       </p>
       <div className="ally-code-form__row">
         <input
           className="ally-code-form__input"
           type="text"
-          placeholder="743985967"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loading}
+          placeholder="BuzzLighter"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          disabled={searchLoading}
         />
-        <button
-          className="ally-code-form__btn"
-          type="submit"
-          disabled={loading || input.trim().length < 9}
-        >
-          {loading ? 'Загрузка...' : 'Загрузить'}
-        </button>
       </div>
-    </form>
+
+      {searchLoading && <p className="ally-code-form__hint">Поиск...</p>}
+
+      {searched && !searchLoading && searchResults.length === 0 && (
+        <p className="ally-code-form__hint">Гильдии не найдены</p>
+      )}
+
+      {searchResults.length > 0 && (
+        <div className="ally-code-form__results">
+          {searchResults.map((g) => (
+            <button
+              key={g.id}
+              className="ally-code-form__result"
+              onClick={() => setGuild(g.id, g.name)}
+            >
+              <span className="ally-code-form__result-name">{g.name}</span>
+              <span className="ally-code-form__result-meta">
+                {formatGalaxyPower(Number(g.guildGalacticPower))} · {g.memberCount}/{g.memberMax} участников
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

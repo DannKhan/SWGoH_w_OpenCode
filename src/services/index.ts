@@ -4,6 +4,8 @@ export type {
   ComlinkRosterUnit,
   ComlinkGuildResponse,
   ComlinkGuildMember,
+  ComlinkGuildSearchResult,
+  ComlinkGuildSearchItem,
   ComlinkTwResult,
   ComlinkRaidResult,
   ComlinkTbStatus,

@@ -135,6 +135,25 @@ export interface ComlinkRaidStatus {
   endTime: string;
 }
 
+export interface ComlinkGuildSearchResult {
+  guild: ComlinkGuildSearchItem[];
+  totalRecords: number;
+}
+
+export interface ComlinkGuildSearchItem {
+  id: string;
+  name: string;
+  memberCount: number;
+  memberMax: number;
+  guildGalacticPower: string;
+  bannerColorId: string;
+  bannerLogoId: string;
+  levelRequirement: number;
+  level: number;
+  enrollmentStatus: number;
+  externalMessageKey: string;
+}
+
 class ComlinkService {
   private baseUrl: string;
 
@@ -160,6 +179,10 @@ class ComlinkService {
 
   getPlayer(allyCode: string): Promise<ComlinkPlayerResponse> {
     return this.post<ComlinkPlayerResponse>('/player', { allyCode });
+  }
+
+  searchGuilds(name: string): Promise<ComlinkGuildSearchResult> {
+    return this.post<ComlinkGuildSearchResult>('/getGuilds', { name, filterType: 4 });
   }
 
   getGuild(guildId: string, includeRecentGuildActivityInfo = true): Promise<ComlinkGuildResponse> {
