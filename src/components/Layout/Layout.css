@@ -2,8 +2,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #16213e;
-  color: #eee;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .layout__main {
@@ -12,4 +12,10 @@
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .layout__main {
+    padding: 1rem;
+  }
 }
