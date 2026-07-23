@@ -49,11 +49,11 @@
   background: var(--accent-green);
   color: var(--text-accent);
   border: none;
+  border-radius: 6px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  clip-path: polygon(0.625em 0, 100% 0, 100% calc(100% - 0.825em), calc(100% - 0.825em) 100%, 0 100%, 0 0.625em);
   transition: background 0.2s, opacity 0.2s;
 }
 

@@ -1,6 +1,5 @@
 import { useApp } from '../../context/AppContext';
 import { GuildSearchForm } from '../../components/common/AllyCodeInput';
-import { SnapshotPanel } from '../../components/common/SnapshotPanel';
 import { formatGalaxyPower } from '../../utils';
 import './Dashboard.css';
 
@@ -66,8 +65,6 @@ export function Dashboard() {
           <span className="dashboard__card-value">{activeToday.length}</span>
         </div>
       </div>
-
-      <SnapshotPanel />
 
       <h2>Игроки</h2>
       <div className="dashboard__table-wrap">
