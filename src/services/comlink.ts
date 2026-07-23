@@ -1,4 +1,5 @@
 const API_BASE = 'https://free-comlink.onrender.com';
+const CORS_PROXY = 'https://corsproxy.io/?url=';
 
 export interface ComlinkPlayerResponse {
   allyCode: string;
@@ -142,7 +143,8 @@ class ComlinkService {
   }
 
   private async post<T>(path: string, payload: unknown): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const targetUrl = `${this.baseUrl}${path}`;
+    const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
     const body = JSON.stringify({ payload });
     const response = await fetch(url, {
       method: 'POST',
