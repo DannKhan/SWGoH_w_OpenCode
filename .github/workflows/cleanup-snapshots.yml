@@ -1,0 +1,29 @@
+name: Cleanup Snapshots
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: snapshots
+          path: repo
+
+      - name: Clear all snapshots
+        run: |
+          cd repo
+          git config user.name "cleanup-bot"
+          git config user.email "bot@swgoh.app"
+          rm -rf data/snapshots
+          mkdir -p data/snapshots
+          git add data/snapshots
+          git commit -m "cleanup: remove all snapshots"
+          git push origin snapshots --force

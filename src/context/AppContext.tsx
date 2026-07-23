@@ -129,7 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSnapshotStatus('pending');
       setPlayerAllyCode(allyCode);
 
-      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/master/data/snapshots/${allyCode}.json`;
+      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
 
       let attempts = 0;
       const maxAttempts = 30;
@@ -170,10 +170,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (playerAllyCode && guildId) {
-      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/master/data/snapshots/${playerAllyCode}.json`;
+      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${playerAllyCode}.json`;
       fetch(rawUrl)
         .then((r) => r.ok ? r.json() : null)
-        .then((data) => { if (data) setPlayer(data); })
+        .then((data) => { if (data) { setPlayer(data); setSnapshotStatus('ready'); } })
         .catch(() => {});
     }
   }, [playerAllyCode, guildId]);

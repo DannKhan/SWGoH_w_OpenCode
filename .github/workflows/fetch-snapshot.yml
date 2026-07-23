@@ -16,20 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: repo
 
-      - name: Fetch player data from Comlink
+      - name: Setup snapshots branch
         run: |
-          mkdir -p data/snapshots
+          cd repo
+          git fetch origin snapshots 2>/dev/null && git checkout snapshots || {
+            git checkout -b snapshots
+            git push origin snapshots
+          }
+
+      - name: Fetch player data
+        run: |
+          mkdir -p repo/data/snapshots
           curl -s -X POST "https://free-comlink.onrender.com/player" \
             -H "Content-Type: application/json" \
             -d '{ "payload": { "allyCode": "${{ github.event.inputs.allyCode }}" } }' \
-            > data/snapshots/${{ github.event.inputs.allyCode }}.json
-          echo "Saved ${{ github.event.inputs.allyCode }}.json ($(wc -c < data/snapshots/${{ github.event.inputs.allyCode }}.json) bytes)"
+            > repo/data/snapshots/${{ github.event.inputs.allyCode }}.json
+          echo "Saved ($(wc -c < repo/data/snapshots/${{ github.event.inputs.allyCode }}.json) bytes)"
 
-      - name: Commit snapshot
+      - name: Commit and push
         run: |
+          cd repo
           git config user.name "snapshot-bot"
           git config user.email "bot@swgoh.app"
           git add data/snapshots/${{ github.event.inputs.allyCode }}.json
-          git diff --cached --quiet || git commit -m "snapshot: ${{ github.event.inputs.allyCode }} [skip ci]"
-          git push
+          git commit -m "snapshot: ${{ github.event.inputs.allyCode }}"
+          git push origin snapshots --force
