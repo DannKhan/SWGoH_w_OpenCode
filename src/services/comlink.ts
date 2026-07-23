@@ -1,81 +1,186 @@
-const COMLINK_BASE_URL = 'https://api.swgoh.help';
+const API_BASE = 'https://free-comlink.onrender.com';
 
-export interface ComlinkConfig {
-  username: string;
-  password: string;
-  baseUrl?: string;
+export interface ComlinkPlayerResponse {
+  allyCode: string;
+  playerId: string;
+  name: string;
+  level: number;
+  guildId: string;
+  guildName: string;
+  guildBannerColor: string;
+  guildBannerLogo: string;
+  lastActivityTime: string;
+  localTimeZoneOffsetMinutes: number;
+  playerRating: {
+    playerSkillRating: { skillRating: number };
+    playerRankStatus: { leagueId: string; divisionId: number };
+  };
+  rosterUnit: ComlinkRosterUnit[];
+  stats: ComlinkPlayerStat[];
+  lifetimeSeasonScore: string;
+  selectedPlayerPortrait: { id: string };
+  selectedPlayerTitle: { id: string };
+  guildTypeId: string;
+  nucleusId: string;
 }
 
-export class ComlinkService {
-  private config: ComlinkConfig;
-  private accessToken: string | null = null;
+export interface ComlinkRosterUnit {
+  id: string;
+  definitionId: string;
+  currentRarity: number;
+  currentLevel: number;
+  currentTier: number;
+  relic: { currentTier: number };
+  skill: ComlinkSkill[];
+  equipment: string[];
+  equippedStatMod: ComlinkMod[];
+  purchasedAbilityId: string[];
+}
 
-  constructor(config: ComlinkConfig) {
-    this.config = config;
+export interface ComlinkSkill {
+  id: string;
+  tier: number;
+}
+
+export interface ComlinkMod {
+  id: string;
+  definitionId: string;
+  level: number;
+  tier: number;
+  primaryStat: { stat: string };
+  secondaryStat: string[];
+  locked: boolean;
+}
+
+export interface ComlinkPlayerStat {
+  stat: string;
+}
+
+export interface ComlinkGuildResponse {
+  guild: {
+    profile: {
+      id: string;
+      name: string;
+      memberCount: number;
+      memberMax: number;
+      guildGalacticPower: string;
+      bannerColorId: string;
+      bannerLogoId: string;
+      externalMessageKey: string;
+      level: number;
+      levelRequirement: number;
+      enrollmentStatus: number;
+      guildGalacticPowerForRequirement: string;
+    };
+    member: ComlinkGuildMember[];
+    recentTerritoryWarResult: ComlinkTwResult[];
+    recentRaidResult: ComlinkRaidResult[];
+    territoryBattleStatus: ComlinkTbStatus[];
+    territoryBattleResult: ComlinkTbResult[];
+    raidStatus: ComlinkRaidStatus[];
+  };
+}
+
+export interface ComlinkGuildMember {
+  playerId: string;
+  playerName: string;
+  playerLevel: number;
+  memberLevel: number;
+  galacticPower: string;
+  characterGalacticPower: string;
+  shipGalacticPower: string;
+  lastActivityTime: string;
+  guildJoinTime: string;
+  lifetimeSeasonScore: string;
+  leagueId: string;
+  squadPower: number;
+  playerPortrait: string;
+  playerTitle: string;
+  nucleusId: string;
+}
+
+export interface ComlinkTwResult {
+  territoryWarId: string;
+  score: string;
+  opponentScore: string;
+  endTimeSeconds: string;
+  power: number;
+}
+
+export interface ComlinkRaidResult {
+  raidId: string;
+  identifier: string;
+  progress: number;
+  endTime: string;
+  outcome: number;
+  duration: string;
+  guildRewardScore: string;
+}
+
+export interface ComlinkTbStatus {
+  definitionId: string;
+  completedStars: number;
+  endTime: string;
+}
+
+export interface ComlinkTbResult {
+  tab: string;
+  definitionId: string;
+}
+
+export interface ComlinkRaidStatus {
+  raidId: string;
+  status: number;
+  endTime: string;
+}
+
+class ComlinkService {
+  private baseUrl: string;
+
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl ?? API_BASE;
   }
 
-  async authenticate(): Promise<string> {
-    const url = `${this.config.baseUrl ?? COMLINK_BASE_URL}/auth/signin`;
+  private async post<T>(path: string, payload: unknown): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    const body = JSON.stringify({ payload });
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: this.config.username,
-        password: this.config.password,
-        grant_type: 'password',
-        client_id: '1234567890',
-        client_secret: 'abcdefghijklmnopqrstuvwxyz',
-      }),
+      body,
     });
-
-    if (!response.ok) throw new Error('Comlink authentication failed');
-    const data = await response.json() as { access_token: string };
-    this.accessToken = data.access_token;
-    return this.accessToken as string;
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Comlink API error ${response.status}: ${text}`);
+    }
+    return response.json() as Promise<T>;
   }
 
-  private async request<T>(endpoint: string, body: unknown): Promise<T> {
-    if (!this.accessToken) await this.authenticate();
+  getPlayer(allyCode: string): Promise<ComlinkPlayerResponse> {
+    return this.post<ComlinkPlayerResponse>('/player', { allyCode });
+  }
 
-    const url = `${this.config.baseUrl ?? COMLINK_BASE_URL}/${endpoint}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.accessToken}`,
-      },
-      body: JSON.stringify(body),
+  getGuild(guildId: string, includeRecentGuildActivityInfo = true): Promise<ComlinkGuildResponse> {
+    return this.post<ComlinkGuildResponse>('/guild', {
+      guildId,
+      includeRecentGuildActivityInfo,
     });
-
-    if (!response.ok) throw new Error(`Comlink request failed: ${endpoint}`);
-    return response.json();
   }
 
-  async getGuild(allyCode: string): Promise<unknown> {
-    return this.request('guild', { allycode: [allyCode] });
+  getData(items: string, version?: string): Promise<unknown> {
+    return this.post('/data', {
+      devicePlatform: 'Android',
+      includePveUnits: true,
+      items,
+      requestSegment: 0,
+      version: version ?? '',
+    });
   }
 
-  async getPlayer(allyCode: string): Promise<unknown> {
-    return this.request('player', { allycode: [allyCode] });
-  }
-
-  async getRoster(allyCode: string): Promise<unknown> {
-    return this.request('roster', { allycode: [allyCode] });
-  }
-
-  async getUnits(): Promise<unknown> {
-    return this.request('data', { collection: 'unitsList' });
-  }
-
-  async getGameData(): Promise<unknown> {
-    return this.request('data', { collection: 'gameData' });
-  }
-
-  async getGuildsByCriteria(criteria: Record<string, unknown>): Promise<unknown> {
-    return this.request('guild', criteria);
+  getEnums(): Promise<unknown> {
+    return this.post('/enums', {});
   }
 }
 
-export const createComlinkService = (config: ComlinkConfig): ComlinkService => {
-  return new ComlinkService(config);
-};
+export const comlinkApi = new ComlinkService();
+export default ComlinkService;

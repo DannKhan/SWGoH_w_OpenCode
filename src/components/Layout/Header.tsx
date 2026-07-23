@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useApp } from '../../context/AppContext';
 import './Header.css';
 
 const navItems = [
@@ -11,6 +12,8 @@ const navItems = [
 ];
 
 export function Header() {
+  const { allyCode, setAllyCode, player } = useApp();
+
   return (
     <header className="header">
       <div className="header__logo">
@@ -23,6 +26,14 @@ export function Header() {
           </Link>
         ))}
       </nav>
+      {allyCode && (
+        <div className="header__user">
+          <span className="header__user-name">{player?.name ?? allyCode}</span>
+          <button className="header__user-btn" onClick={() => setAllyCode('')}>
+            Сменить
+          </button>
+        </div>
+      )}
     </header>
   );
 }

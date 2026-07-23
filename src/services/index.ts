@@ -1,5 +1,15 @@
-export { ComlinkService, createComlinkService } from './comlink';
-export type { ComlinkConfig } from './comlink';
+export { comlinkApi, default as ComlinkService } from './comlink';
+export type {
+  ComlinkPlayerResponse,
+  ComlinkRosterUnit,
+  ComlinkGuildResponse,
+  ComlinkGuildMember,
+  ComlinkTwResult,
+  ComlinkRaidResult,
+  ComlinkTbStatus,
+  ComlinkMod,
+  ComlinkSkill,
+} from './comlink';
 
 export { GamedataService, createGamedataService } from './gamedata';
 export type { GamedataLocale } from './gamedata';
