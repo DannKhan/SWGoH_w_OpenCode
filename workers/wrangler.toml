@@ -1,0 +1,4 @@
+name = "swgoh-dispatch"
+main = "dispatch-snapshot.js"
+account_id = "971b30a02478c19395cd4bec741e254b"
+compatibility_date = "2026-07-23"

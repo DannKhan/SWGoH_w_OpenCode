@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { comlinkApi, type ComlinkPlayerResponse, type ComlinkGuildResponse, type ComlinkGuildSearchItem } from '../services/comlink';
 
+const WORKER_URL = 'https://swgoh-dispatch.dannkhan81.workers.dev';
+
 interface AppState {
   guildId: string;
   guildName: string;
@@ -15,8 +17,6 @@ interface AppState {
   searchByAllyCodeLoading: boolean;
   searchGuilds: (query: string) => Promise<void>;
   searchByAllyCode: (allyCode: string) => Promise<void>;
-  githubToken: string;
-  setGithubToken: (token: string) => void;
   snapshotStatus: 'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error';
   snapshotError: string | null;
   requestSnapshot: (allyCode: string) => Promise<void>;
@@ -26,12 +26,29 @@ const AppContext = createContext<AppState | null>(null);
 
 const GUILD_ID_KEY = 'swgoh_guild_id';
 const GUILD_NAME_KEY = 'swgoh_guild_name';
-const TOKEN_KEY = 'swgoh_github_token';
 const ALLY_CODE_KEY = 'swgoh_ally_code';
 
 const REPO_OWNER = 'DannKhan';
 const REPO_NAME = 'SWGoH_w_OpenCode';
-const WORKFLOW_ID = 'fetch-snapshot.yml';
+
+const SNAPSHOT_RAW = (allyCode: string) =>
+  `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
+
+async function pollSnapshot(allyCode: string): Promise<ComlinkPlayerResponse> {
+  const url = SNAPSHOT_RAW(allyCode);
+  const start = Date.now();
+  const timeout = 150_000;
+  const interval = 5000;
+
+  while (Date.now() - start < timeout) {
+    await new Promise((r) => setTimeout(r, interval));
+    const res = await fetch(url);
+    if (res.ok) {
+      return res.json() as Promise<ComlinkPlayerResponse>;
+    }
+  }
+  throw new Error('Тайм-аут ожидания снепшота');
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [guildId, setGuildIdState] = useState(() => localStorage.getItem(GUILD_ID_KEY) ?? '');
@@ -44,15 +61,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [searchResults, setSearchResults] = useState<ComlinkGuildSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchByAllyCodeLoading, setSearchByAllyCodeLoading] = useState(false);
-  const [githubToken, setGithubTokenState] = useState(() => localStorage.getItem(TOKEN_KEY) ?? '');
-
   const [snapshotStatus, setSnapshotStatus] = useState<'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error'>('idle');
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
-
-  const setGithubToken = useCallback((token: string) => {
-    localStorage.setItem(TOKEN_KEY, token);
-    setGithubTokenState(token);
-  }, []);
 
   const setGuild = useCallback((id: string, name: string) => {
     localStorage.setItem(GUILD_ID_KEY, id);
@@ -98,41 +108,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const dispatchAndPollSnapshot = useCallback(async (allyCode: string): Promise<ComlinkPlayerResponse> => {
-    const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
-
-    const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_ID}/dispatches`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: 'application/vnd.github+json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ref: 'master', inputs: { allyCode } }),
-      }
-    );
-    if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-
-    setSnapshotStatus('pending');
-    setPlayerAllyCode(allyCode);
-
-    for (let i = 0; i < 30; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      try {
-        const check = await fetch(rawUrl);
-        if (check.ok) {
-          return check.json() as Promise<ComlinkPlayerResponse>;
-        }
-      } catch { /* retry */ }
+  const dispatchSnapshot = useCallback(async (allyCode: string) => {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allyCode }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error ?? `Ошибка ${res.status}`);
     }
-    throw new Error('Тайм-аут ожидания снепшота');
-  }, [githubToken, setPlayerAllyCode]);
+  }, []);
 
   const requestSnapshot = useCallback(async (allyCode: string) => {
-    if (!githubToken || !allyCode) {
-      setSnapshotError('Требуется GitHub токен и Ally Code');
+    if (!allyCode) {
+      setSnapshotError('Введите Ally Code');
       setSnapshotStatus('error');
       return;
     }
@@ -141,8 +131,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSnapshotError(null);
 
     try {
+      await dispatchSnapshot(allyCode);
+      setSnapshotStatus('pending');
+      setPlayerAllyCode(allyCode);
       setSnapshotStatus('loading');
-      const data = await dispatchAndPollSnapshot(allyCode);
+      const data = await pollSnapshot(allyCode);
       setPlayer(data);
       setSnapshotStatus('ready');
     } catch (err) {
@@ -150,22 +143,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSnapshotError(msg);
       setSnapshotStatus('error');
     }
-  }, [githubToken, dispatchAndPollSnapshot]);
+  }, [dispatchSnapshot, setPlayerAllyCode]);
 
   const searchByAllyCode = useCallback(async (allyCode: string) => {
-    if (!githubToken) {
-      setSnapshotError('Требуется GitHub токен для поиска по Ally Code');
-      setSnapshotStatus('error');
-      return;
-    }
-
     setSearchByAllyCodeLoading(true);
     setSnapshotStatus('requesting');
     setSnapshotError(null);
 
     try {
+      await dispatchSnapshot(allyCode);
+      setSnapshotStatus('pending');
+      setPlayerAllyCode(allyCode);
       setSnapshotStatus('loading');
-      const data = await dispatchAndPollSnapshot(allyCode);
+      const data = await pollSnapshot(allyCode);
       setPlayer(data);
       setSnapshotStatus('ready');
       if (data.guildId) {
@@ -178,7 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setSearchByAllyCodeLoading(false);
     }
-  }, [githubToken, dispatchAndPollSnapshot, setGuild]);
+  }, [dispatchSnapshot, setGuild, setPlayerAllyCode]);
 
   useEffect(() => {
     if (guildId) fetchGuild(guildId);
@@ -186,8 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (playerAllyCode && guildId) {
-      const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${playerAllyCode}.json`;
-      fetch(rawUrl)
+      fetch(SNAPSHOT_RAW(playerAllyCode))
         .then((r) => r.ok ? r.json() : null)
         .then((data) => { if (data) { setPlayer(data); setSnapshotStatus('ready'); } })
         .catch(() => {});
@@ -209,8 +198,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       searchByAllyCodeLoading,
       searchGuilds,
       searchByAllyCode,
-      githubToken,
-      setGithubToken,
       snapshotStatus,
       snapshotError,
       requestSnapshot,
