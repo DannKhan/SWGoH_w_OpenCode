@@ -1,11 +1,11 @@
 import { useApp } from '../../context/AppContext';
 import { GuildSearchForm } from '../../components/common/AllyCodeInput';
-import { GALACTIC_LEGENDS, detectGLs } from '../../data/galacticLegends';
+import { GALACTIC_LEGENDS } from '../../data/galacticLegends';
 import { formatGalaxyPower } from '../../utils';
 import './Dashboard.css';
 
 export function Dashboard() {
-  const { guildId, guild, player, loading, error } = useApp();
+  const { guildId, guild, loading, error, glScanData, glScanStatus, glScanError, scanGuildGLs } = useApp();
 
   if (!guildId) {
     return <GuildSearchForm />;
@@ -40,7 +40,6 @@ export function Dashboard() {
 
   const totalGp = Number(profile.guildGalacticPower);
   const avgGp = members.length > 0 ? totalGp / members.length : 0;
-  const playerGls = player ? detectGLs(player.rosterUnit) : [];
 
   return (
     <section className="dashboard">
@@ -69,26 +68,37 @@ export function Dashboard() {
       </div>
 
       <div className="dashboard__section">
-        <h2>Galactic Legends</h2>
+        <div className="dashboard__section-header">
+          <h2>Galactic Legends</h2>
+          {glScanStatus === 'idle' && (
+            <button className="dashboard__scan-btn" onClick={scanGuildGLs}>
+              Сканировать гильдию
+            </button>
+          )}
+          {glScanStatus === 'scanning' && (
+            <span className="dashboard__scan-status">Сканирование (~5 мин)...</span>
+          )}
+          {glScanStatus === 'error' && (
+            <span className="dashboard__scan-status dashboard__scan-status--error">
+              {glScanError}
+            </span>
+          )}
+        </div>
         <p className="dashboard__section-desc">
-          {player
-            ? `У игрока ${player.name} — ${playerGls.length} из ${GALACTIC_LEGENDS.length} GL`
-            : 'Загрузите данные игрока через поиск по Ally Code, чтобы увидеть его GL'}
+          {glScanData
+            ? `Сканировано ${glScanData.totalMembers} игроков`
+            : 'Нажмите «Сканировать гильдию», чтобы увидеть GL всех участников'}
         </p>
+
         <div className="gl-grid">
           {GALACTIC_LEGENDS.map((gl) => {
-            const has = playerGls.some((pgl) => pgl.id === gl.id);
+            const count = glScanData?.counts[gl.id] ?? 0;
+            const hasData = glScanData !== null;
             return (
-              <div key={gl.id} className={`gl-item${has ? ' gl-item--owned' : ''}`}>
-                <div className="gl-item__icon">{gl.icon.toUpperCase()}</div>
+              <div key={gl.id} className={`gl-item${count > 0 ? ' gl-item--owned' : ''}`}>
+                <div className="gl-item__icon">{gl.ship ? '🛸' : '⚔'}</div>
                 <span className="gl-item__name">{gl.name}</span>
-                {player ? (
-                  <span className={`gl-item__status${has ? ' gl-item__status--yes' : ' gl-item__status--no'}`}>
-                    {has ? '✓' : '✗'}
-                  </span>
-                ) : (
-                  <span className="gl-item__status gl-item__status--na">—</span>
-                )}
+                <span className="gl-item__count">{hasData ? count : '—'}</span>
               </div>
             );
           })}

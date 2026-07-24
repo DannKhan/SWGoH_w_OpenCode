@@ -1,0 +1,42 @@
+name: Scan Guild GLs
+
+on:
+  workflow_dispatch:
+    inputs:
+      guildId:
+        description: 'Guild ID'
+        required: true
+        type: string
+      guildName:
+        description: 'Guild name (for filename)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: snapshots
+          path: repo
+
+      - name: Scan GLs
+        run: |
+          cd repo
+          python .github/scripts/scan_gls.py "${{ github.event.inputs.guildId }}"
+          mkdir -p data/gl-scans
+          cp gl-data.json "data/gl-scans/${{ github.event.inputs.guildName }}.json"
+          rm gl-data.json
+
+      - name: Commit and push
+        run: |
+          cd repo
+          git config user.name "scan-bot"
+          git config user.email "bot@swgoh.app"
+          git add data/gl-scans
+          git commit -m "gl-scan: ${{ github.event.inputs.guildName }}"
+          git push origin snapshots --force

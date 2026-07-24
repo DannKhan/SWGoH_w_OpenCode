@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { comlinkApi, type ComlinkPlayerResponse, type ComlinkGuildResponse, type ComlinkGuildSearchItem } from '../services/comlink';
+import type { GLScanData } from '../data/galacticLegends';
 
 const WORKER_URL = 'https://swgoh-dispatch.dannkhan81.workers.dev';
 
@@ -20,6 +21,10 @@ interface AppState {
   snapshotStatus: 'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error';
   snapshotError: string | null;
   requestSnapshot: (allyCode: string) => Promise<void>;
+  glScanData: GLScanData | null;
+  glScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
+  glScanError: string | null;
+  scanGuildGLs: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -33,6 +38,9 @@ const REPO_NAME = 'SWGoH_w_OpenCode';
 
 const SNAPSHOT_RAW = (allyCode: string) =>
   `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/snapshots/${allyCode}.json`;
+
+const GL_SCAN_RAW = (guildName: string) =>
+  `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/snapshots/data/gl-scans/${encodeURIComponent(guildName)}.json`;
 
 async function pollSnapshot(allyCode: string): Promise<ComlinkPlayerResponse> {
   const url = SNAPSHOT_RAW(allyCode);
@@ -50,6 +58,22 @@ async function pollSnapshot(allyCode: string): Promise<ComlinkPlayerResponse> {
   throw new Error('Тайм-аут ожидания снепшота');
 }
 
+async function pollGLScan(guildName: string): Promise<GLScanData> {
+  const url = GL_SCAN_RAW(guildName);
+  const start = Date.now();
+  const timeout = 600_000;
+  const interval = 10000;
+
+  while (Date.now() - start < timeout) {
+    await new Promise((r) => setTimeout(r, interval));
+    const res = await fetch(url);
+    if (res.ok) {
+      return res.json() as Promise<GLScanData>;
+    }
+  }
+  throw new Error('Тайм-аут сканирования GL');
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [guildId, setGuildIdState] = useState(() => localStorage.getItem(GUILD_ID_KEY) ?? '');
   const [guildName, setGuildNameState] = useState(() => localStorage.getItem(GUILD_NAME_KEY) ?? '');
@@ -63,6 +87,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [searchByAllyCodeLoading, setSearchByAllyCodeLoading] = useState(false);
   const [snapshotStatus, setSnapshotStatus] = useState<'idle' | 'requesting' | 'pending' | 'loading' | 'ready' | 'error'>('idle');
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [glScanData, setGlScanData] = useState<GLScanData | null>(null);
+  const [glScanStatus, setGlScanStatus] = useState<'idle' | 'scanning' | 'ready' | 'error'>('idle');
+  const [glScanError, setGlScanError] = useState<string | null>(null);
 
   const setGuild = useCallback((id: string, name: string) => {
     localStorage.setItem(GUILD_ID_KEY, id);
@@ -170,6 +197,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [dispatchSnapshot, setGuild, setPlayerAllyCode]);
 
+  const scanGuildGLs = useCallback(async () => {
+    if (!guildId || !guildName) return;
+
+    setGlScanStatus('scanning');
+    setGlScanError(null);
+
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'scan-gls', guildId, guildName }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? `Ошибка ${res.status}`);
+      }
+      const result = await pollGLScan(guildName);
+      setGlScanData(result);
+      setGlScanStatus('ready');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setGlScanError(msg);
+      setGlScanStatus('error');
+    }
+  }, [guildId, guildName]);
+
   useEffect(() => {
     if (guildId) fetchGuild(guildId);
   }, [guildId, fetchGuild]);
@@ -182,6 +235,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .catch(() => {});
     }
   }, [playerAllyCode, guildId]);
+
+  useEffect(() => {
+    if (guildName && glScanStatus === 'idle') {
+      fetch(GL_SCAN_RAW(guildName))
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data) { setGlScanData(data); setGlScanStatus('ready'); } })
+        .catch(() => {});
+    }
+  }, [guildName, glScanStatus]);
 
   return (
     <AppContext.Provider value={{
@@ -201,6 +263,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       snapshotStatus,
       snapshotError,
       requestSnapshot,
+      glScanData,
+      glScanStatus,
+      glScanError,
+      scanGuildGLs,
     }}>
       {children}
     </AppContext.Provider>
