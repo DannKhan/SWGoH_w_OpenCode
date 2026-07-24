@@ -20,23 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: snapshots
-          path: repo
 
       - name: Scan GLs
         run: |
-          cd repo
           python .github/scripts/scan_gls.py "${{ github.event.inputs.guildId }}"
-          mkdir -p data/gl-scans
-          cp gl-data.json "data/gl-scans/${{ github.event.inputs.guildName }}.json"
-          rm gl-data.json
+          mkdir -p /tmp/gl-scan
+          cp gl-data.json "/tmp/gl-scan/${{ github.event.inputs.guildName }}.json"
 
-      - name: Commit and push
+      - name: Setup snapshots branch
         run: |
-          cd repo
+          git fetch origin snapshots 2>/dev/null || git branch snapshots
+          git checkout snapshots 2>/dev/null || git checkout -b snapshots
+
+      - name: Copy and commit
+        run: |
+          mkdir -p data/gl-scans
+          cp "/tmp/gl-scan/${{ github.event.inputs.guildName }}.json" "data/gl-scans/${{ github.event.inputs.guildName }}.json"
           git config user.name "scan-bot"
           git config user.email "bot@swgoh.app"
           git add data/gl-scans
-          git commit -m "gl-scan: ${{ github.event.inputs.guildName }}"
+          git diff --cached --quiet || git commit -m "gl-scan: ${{ github.event.inputs.guildName }}"
           git push origin snapshots --force
